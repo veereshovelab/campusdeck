@@ -2,8 +2,6 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,7 +60,7 @@ import com.example.ui.theme.*
 @Composable
 fun AssignmentScreen(
     viewModel: CampusViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val user by viewModel.currentUser.collectAsState()
@@ -70,7 +68,7 @@ fun AssignmentScreen(
     val unlockedIds by viewModel.unlockedResourceIds.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
-    var showUploadDialog by remember { mutableStateOf(false) }
+    var showUploadDialog by remember { mutableStateOf(value = false) }
 
     val assignmentResources = resources.filter { it.fileType == "Assignment" }
 
@@ -84,11 +82,27 @@ fun AssignmentScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Assignment Vault",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
-                            color = BentoTextMain
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFF020617), RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.campusdeck_logo),
+                                    contentDescription = "Logo",
+                                    tint = Color.Unspecified,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Assignment Vault",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
+                                color = BentoTextMain
+                            )
+                        }
                         Card(
                             colors = CardDefaults.cardColors(containerColor = BentoPinkContainer),
                             shape = RoundedCornerShape(12.dp)
@@ -197,17 +211,16 @@ fun AssignmentScreen(
                     items(assignmentResources) { resource ->
                         ResourceCardItem(
                             resource = resource,
-                            isUnlocked = unlockedIds.contains(resource.id) || resource.uploaderEmail == user?.email,
+                            isUnlocked = (unlockedIds.contains(resource.id) || resource.uploaderEmail == user?.email),
                             isSelfUploaded = resource.uploaderEmail == user?.email,
                             onPurchase = {
-                                viewModel.purchaseResource(resource) { success, msg ->
+                                viewModel.purchaseResource(resource) { _, msg ->
                                     Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                                 }
                             },
-                            onDownloadSimulate = {
-                                Toast.makeText(context, "Opening Assignment: ${resource.title}...", Toast.LENGTH_SHORT).show()
-                            }
-                        )
+                        ) {
+                            Toast.makeText(context, "Opening Assignment: ${resource.title}...", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             }
@@ -216,11 +229,11 @@ fun AssignmentScreen(
         if (showUploadDialog) {
             UploadResourceDialog(
                 onDismiss = { showUploadDialog = false },
-                onUpload = { title, course, prof, sem, desc, type, price ->
+                onUpload = { title, course, prof, sem, desc, _, price ->
                     viewModel.addResource(title, course, prof, sem, desc, "Assignment", price)
                     Toast.makeText(context, "Assignment uploaded to the vault!", Toast.LENGTH_SHORT).show()
                     showUploadDialog = false
-                }
+                },
             )
         }
     }

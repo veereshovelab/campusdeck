@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Stylized "C" - Using Fills for Sharper Rendering -->
+    <path
+        android:pathData="M85.6,29.4 C77.5,18.4 61.2,15.6 48.7,21.5 C24,33.1 18.5,67.3 29.5,88.7 C38.5,106.1 66.8,110.1 82.5,95.5 C88,90.4 91.3,81.6 91.3,81.6 L82.4,76.6 C82.4,76.6 80.2,82.8 76.1,86.6 C65.5,96.5 46.4,93.7 40.3,82.1 C32.1,66 36.1,41.2 53.6,33 C62.3,28.9 73.2,30.8 78.8,38.4 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="20"
+                android:startY="20"
+                android:endX="90"
+                android:endY="90"
+                android:type="linear">
+                <item android:color="#00E5FF" android:offset="0.0" />
+                <item android:color="#2979FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Graduation Cap (Mortarboard) - Sharpened Paths -->
+    <path
+        android:pathData="M54,40 L85,52 L54,64 L23,52 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="23"
+                android:startY="40"
+                android:endX="85"
+                android:endY="64"
+                android:type="linear">
+                <item android:color="#00B0FF" android:offset="0.0" />
+                <item android:color="#00E5FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Cap Base -->
+    <path
+        android:pathData="M35,57 L35,65 C35,65 40,70 54,70 C68,70 73,65 73,65 L73,57 L71,57 L71,64 C71,64 67,68 54,68 C41,68 37,64 37,64 L37,57 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="35"
+                android:startY="57"
+                android:endX="73"
+                android:endY="70"
+                android:type="linear">
+                <item android:color="#0091EA" android:offset="0.0" />
+                <item android:color="#00B0FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Tassel -->
+    <path
+        android:pathData="M84,52 L84,75 L86,75 L86,52 Z"
+        android:fillColor="#00E5FF" />
+    <path
+        android:pathData="M82,75 L88,75 L85,85 Z"
+        android:fillColor="#00E5FF" />
+
+</vector>

@@ -5,7 +5,7 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Sophisticated Deep Slate & Navy Gradient Background -->
+    <!-- Deep Navy/Black Background for new Cyan theme -->
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
@@ -15,24 +15,12 @@
                 android:startY="0"
                 android:type="linear">
                 <item
-                    android:color="#0F172A"
+                    android:color="#020617"
                     android:offset="0.0" />
                 <item
-                    android:color="#1E293B"
+                    android:color="#0F172A"
                     android:offset="1.0" />
             </gradient>
         </aapt:attr>
     </path>
-    
-    <!-- Sophisticated background accent grid lines -->
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M24,0 L24,108 M48,0 L48,108 M72,0 L72,108 M96,0 L96,108"
-        android:strokeWidth="0.5"
-        android:strokeColor="#10FFFFFF" />
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M0,24 L108,24 M0,48 L108,48 M0,72 L108,72 M0,96 L108,96"
-        android:strokeWidth="0.5"
-        android:strokeColor="#10FFFFFF" />
 </vector>

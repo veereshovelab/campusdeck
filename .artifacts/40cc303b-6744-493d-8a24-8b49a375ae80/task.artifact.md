@@ -1,0 +1,4 @@
+- [ ] Remove `Modifier.blur` from `GlassCard` in `GlassComponents.kt`
+- [ ] Remove `Modifier.blur` from `glassEffect` in `GlassComponents.kt`
+- [ ] Increase logo size in `TopAppBar` for better visibility (Assignment, Home, Marketplace, Gig screens)
+- [ ] Verify build and sharpness

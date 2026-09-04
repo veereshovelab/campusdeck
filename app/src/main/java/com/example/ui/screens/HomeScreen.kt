@@ -114,27 +114,43 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                        Text(
-                            text = "Campusdeck",
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
-                            color = BentoTextMain
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.padding(top = 2.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(Color(0xFF020617), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(Color(0xFF22C55E), shape = CircleShape)
+                            Icon(
+                                painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.campusdeck_logo),
+                                contentDescription = "Logo",
+                                tint = Color.Unspecified,
+                                modifier = Modifier.size(24.dp)
                             )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
                             Text(
-                                text = (user?.collegeName ?: "Institutional Network").uppercase(),
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
-                                color = BentoTextSecondary
+                                text = "Campusdeck",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp),
+                                color = BentoTextMain
                             )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(Color(0xFF22C55E), shape = CircleShape)
+                                )
+                                Text(
+                                    text = (user?.collegeName ?: "Institutional Network").uppercase(),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
+                                    color = BentoTextSecondary
+                                )
+                            }
                         }
                     }
                 },
