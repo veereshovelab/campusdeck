@@ -94,10 +94,14 @@ fun MainAppContent(viewModel: CampusViewModel) {
               NavigationBarItem(
                 selected = currentRoute == tab.route,
                 onClick = {
-                  navController.navigate(tab.route) {
-                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
+                  if (tab.route == CampusTab.FEED.route) {
+                    navController.popBackStack(CampusTab.FEED.route, inclusive = false)
+                  } else if (currentRoute != tab.route) {
+                    navController.navigate(tab.route) {
+                      popUpTo(navController.graph.startDestinationId) { saveState = true }
+                      launchSingleTop = true
+                      restoreState = true
+                    }
                   }
                 },
                 icon = {
@@ -130,18 +134,20 @@ fun MainAppContent(viewModel: CampusViewModel) {
         navController = navController,
         startDestination = CampusTab.FEED.route,
         modifier = Modifier.padding(innerPadding),
-        enterTransition = { fadeIn(animationSpec = tween(400)) + slideInHorizontally(initialOffsetX = { it / 2 }) },
-        exitTransition = { fadeOut(animationSpec = tween(400)) + slideOutHorizontally(targetOffsetX = { -it / 2 }) },
-        popEnterTransition = { fadeIn(animationSpec = tween(400)) + slideInHorizontally(initialOffsetX = { -it / 2 }) },
-        popExitTransition = { fadeOut(animationSpec = tween(400)) + slideOutHorizontally(targetOffsetX = { it / 2 }) }
+        enterTransition = { fadeIn(animationSpec = tween(350)) + slideInHorizontally(initialOffsetX = { it / 3 }) + scaleIn(initialScale = 0.96f) },
+        exitTransition = { fadeOut(animationSpec = tween(350)) + slideOutHorizontally(targetOffsetX = { -it / 3 }) + scaleOut(targetScale = 0.96f) },
+        popEnterTransition = { fadeIn(animationSpec = tween(350)) + slideInHorizontally(initialOffsetX = { -it / 3 }) + scaleIn(initialScale = 0.96f) },
+        popExitTransition = { fadeOut(animationSpec = tween(350)) + slideOutHorizontally(targetOffsetX = { it / 3 }) + scaleOut(targetScale = 0.96f) }
       ) {
         composable(CampusTab.FEED.route) {
           HomeScreen(
             viewModel = viewModel,
             onProfileClick = { navController.navigate(CampusTab.PROFILE.route) },
             onStartChat = { email ->
-              viewModel.startNewChat(email) { chatId ->
-                navController.navigate("chat/$chatId")
+              viewModel.startNewChat(email) { success, msg, chatId ->
+                if (success && chatId != null) {
+                  navController.navigate("chat/$chatId")
+                }
               }
             }
           )
@@ -156,8 +162,10 @@ fun MainAppContent(viewModel: CampusViewModel) {
           GigScreen(
             viewModel = viewModel,
             onStartChat = { email ->
-              viewModel.startNewChat(email) { chatId ->
-                navController.navigate("chat/$chatId")
+              viewModel.startNewChat(email) { success, msg, chatId ->
+                if (success && chatId != null) {
+                  navController.navigate("chat/$chatId")
+                }
               }
             }
           )

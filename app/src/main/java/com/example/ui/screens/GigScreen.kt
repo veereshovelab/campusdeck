@@ -50,6 +50,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.example.ui.components.CampusLogo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -112,11 +113,8 @@ fun GigScreen(
                                     .background(Color(0xFF020617), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.campusdeck_logo),
-                                    contentDescription = "Logo",
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier.size(24.dp)
+                                CampusLogo(
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))

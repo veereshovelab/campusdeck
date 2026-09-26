@@ -1,10 +1,19 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +27,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -49,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -64,6 +73,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.CampusViewModel
+import com.example.ui.components.CampusLogo
 import com.example.ui.theme.*
 
 @Composable
@@ -80,25 +90,48 @@ fun LoginScreen(
     var studentId by remember { mutableStateOf("") }
     var major by remember { mutableStateOf("") }
 
+    // 1. Infinite Ambient Pulse Animations
+    val infiniteTransition = rememberInfiniteTransition(label = "login_ambient_transition")
+    
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.70f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow_alpha"
+    )
+
+    val logoPulseScale by infiniteTransition.animateFloat(
+        initialValue = 1.00f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "logo_scale"
+    )
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = BentoBackground
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Ambient grid background glow using pastel palette
+            // Ambient animated background glow canvas
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(BentoLavenderContainer.copy(alpha = 0.5f), Color.Transparent),
+                        colors = listOf(BentoLavenderContainer.copy(alpha = glowAlpha), Color.Transparent),
                         center = Offset(size.width * 0.2f, size.height * 0.2f),
-                        radius = size.width * 0.8f
+                        radius = size.width * 0.85f
                     )
                 )
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(BentoLilacContainer.copy(alpha = 0.4f), Color.Transparent),
-                        center = Offset(size.width * 0.8f, size.height * 0.7f),
-                        radius = size.width * 0.7f
+                        colors = listOf(BentoLilacContainer.copy(alpha = glowAlpha * 0.8f), Color.Transparent),
+                        center = Offset(size.width * 0.8f, size.height * 0.75f),
+                        radius = size.width * 0.75f
                     )
                 )
             }
@@ -113,8 +146,12 @@ fun LoginScreen(
             ) {
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // The Campus Gate Silhouette Custom Vector Canvas - Bento style
-                CampusGateSilhouette(modifier = Modifier.size(150.dp))
+                // The Official Campusdeck Hexagon Logo with pulsing scale animation
+                CampusLogo(
+                    modifier = Modifier
+                        .size(110.dp)
+                        .scale(logoPulseScale)
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -161,7 +198,7 @@ fun LoginScreen(
                         )
 
                         Text(
-                            text = if (isRegistering) "Register with your university credential to access your local network." else "Enter your campus-issued credentials to enter.",
+                            text = if (isRegistering) "Register to access your local campus network." else "Enter your credentials to enter.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = BentoTextSecondary,
                             modifier = Modifier
@@ -170,7 +207,7 @@ fun LoginScreen(
                             textAlign = TextAlign.Start
                         )
 
-                        // Error Alert Banner using beautiful Bento Pink Alert style
+                        // 2. Animated Visibility for Error Banner
                         AnimatedVisibility(
                             visible = errorMsg != null,
                             enter = fadeIn() + slideInVertically(),
@@ -194,11 +231,11 @@ fun LoginScreen(
                             }
                         }
 
-                        // Input fields with custom Bento Outline Text Fields
+                        // Input fields
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
-                            label = { Text("College Email (ends in .edu)") },
+                            label = { Text("Email Address") },
                             leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email", tint = BentoLavenderContent) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
@@ -221,59 +258,18 @@ fun LoginScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        if (isRegistering) {
-                            OutlinedTextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                label = { Text("Full Name") },
-                                leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Name", tint = BentoLavenderContent) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = BentoTextMain,
-                                    unfocusedTextColor = BentoTextMain,
-                                    focusedBorderColor = BentoLavenderContent,
-                                    unfocusedBorderColor = BentoBorder,
-                                    focusedLabelColor = BentoLavenderContent,
-                                    unfocusedLabelColor = BentoTextSecondary
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("name_input")
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            OutlinedTextField(
-                                value = collegeName,
-                                onValueChange = { collegeName = it },
-                                label = { Text("University / College Name") },
-                                leadingIcon = { Icon(Icons.Default.Business, contentDescription = "College", tint = BentoLavenderContent) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = BentoTextMain,
-                                    unfocusedTextColor = BentoTextMain,
-                                    focusedBorderColor = BentoLavenderContent,
-                                    unfocusedBorderColor = BentoBorder,
-                                    focusedLabelColor = BentoLavenderContent,
-                                    unfocusedLabelColor = BentoTextSecondary
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("college_input")
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // 3. Smooth animated transition for Registration Extra Fields
+                        AnimatedVisibility(
+                            visible = isRegistering,
+                            enter = fadeIn() + expandVertically() + slideInVertically(),
+                            exit = fadeOut() + shrinkVertically() + slideOutVertically()
+                        ) {
+                            Column {
                                 OutlinedTextField(
-                                    value = studentId,
-                                    onValueChange = { studentId = it },
-                                    label = { Text("Student ID") },
-                                    leadingIcon = { Icon(Icons.Default.Badge, contentDescription = "Student ID", tint = BentoLavenderContent) },
+                                    value = name,
+                                    onValueChange = { name = it },
+                                    label = { Text("Full Name") },
+                                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = "Name", tint = BentoLavenderContent) },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                     colors = OutlinedTextFieldDefaults.colors(
@@ -286,17 +282,19 @@ fun LoginScreen(
                                     ),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("student_id_input")
+                                        .fillMaxWidth()
+                                        .testTag("name_input")
                                 )
 
+                                Spacer(modifier = Modifier.height(12.dp))
+
                                 OutlinedTextField(
-                                    value = major,
-                                    onValueChange = { major = it },
-                                    label = { Text("Major") },
-                                    leadingIcon = { Icon(Icons.Default.School, contentDescription = "Major", tint = BentoLavenderContent) },
+                                    value = collegeName,
+                                    onValueChange = { collegeName = it },
+                                    label = { Text("University / College Name") },
+                                    leadingIcon = { Icon(Icons.Default.Business, contentDescription = "College", tint = BentoLavenderContent) },
                                     singleLine = true,
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedTextColor = BentoTextMain,
                                         unfocusedTextColor = BentoTextMain,
@@ -307,12 +305,58 @@ fun LoginScreen(
                                     ),
                                     shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
-                                        .weight(1.2f)
-                                        .testTag("major_input")
+                                        .fillMaxWidth()
+                                        .testTag("college_input")
                                 )
-                            }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedTextField(
+                                        value = studentId,
+                                        onValueChange = { studentId = it },
+                                        label = { Text("Student ID") },
+                                        leadingIcon = { Icon(Icons.Default.Badge, contentDescription = "Student ID", tint = BentoLavenderContent) },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = BentoTextMain,
+                                            unfocusedTextColor = BentoTextMain,
+                                            focusedBorderColor = BentoLavenderContent,
+                                            unfocusedBorderColor = BentoBorder,
+                                            focusedLabelColor = BentoLavenderContent,
+                                            unfocusedLabelColor = BentoTextSecondary
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("student_id_input")
+                                    )
+
+                                    OutlinedTextField(
+                                        value = major,
+                                        onValueChange = { major = it },
+                                        label = { Text("Major") },
+                                        leadingIcon = { Icon(Icons.Default.School, contentDescription = "Major", tint = BentoLavenderContent) },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = BentoTextMain,
+                                            unfocusedTextColor = BentoTextMain,
+                                            focusedBorderColor = BentoLavenderContent,
+                                            unfocusedBorderColor = BentoBorder,
+                                            focusedLabelColor = BentoLavenderContent,
+                                            unfocusedLabelColor = BentoTextSecondary
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier
+                                            .weight(1.2f)
+                                            .testTag("major_input")
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
                         }
 
                         Button(
@@ -334,7 +378,7 @@ fun LoginScreen(
                             )
                         ) {
                             Text(
-                                text = if (isRegistering) "Sign Up & Claim Welcome Bonus" else "Verify Domain & Enter",
+                                text = if (isRegistering) "Sign Up & Claim Welcome Bonus" else "Log In",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
                         }
@@ -367,7 +411,7 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Feature Highlights Footer - Bento Grid Style Layout
+                // Feature Highlights Footer
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly

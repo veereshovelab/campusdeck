@@ -17,6 +17,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+data class DirectMessageWithUser(
+    val dm: DirectMessage,
+    val otherUser: User?
+)
+
 class CampusViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getDatabase(application)
     private val repository = CampusRepository(
@@ -33,6 +38,27 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _directMessages = MutableStateFlow<List<DirectMessage>>(emptyList())
     val directMessages: StateFlow<List<DirectMessage>> = _directMessages.asStateFlow()
+
+    private val _directMessagesWithUsers = MutableStateFlow<List<DirectMessageWithUser>>(emptyList())
+    val directMessagesWithUsers: StateFlow<List<DirectMessageWithUser>> = _directMessagesWithUsers.asStateFlow()
+
+    private val _currentChatOtherUser = MutableStateFlow<User?>(null)
+    val currentChatOtherUser: StateFlow<User?> = _currentChatOtherUser.asStateFlow()
+
+    private val _allColleges = MutableStateFlow<List<String>>(emptyList())
+    val allColleges: StateFlow<List<String>> = _allColleges.asStateFlow()
+
+    private val _allMajors = MutableStateFlow<List<String>>(emptyList())
+    val allMajors: StateFlow<List<String>> = _allMajors.asStateFlow()
+
+    private val _usersInSelectedCollege = MutableStateFlow<List<User>>(emptyList())
+    val usersInSelectedCollege: StateFlow<List<User>> = _usersInSelectedCollege.asStateFlow()
+
+    private val _usersInSelectedMajor = MutableStateFlow<List<User>>(emptyList())
+    val usersInSelectedMajor: StateFlow<List<User>> = _usersInSelectedMajor.asStateFlow()
+
+    private val _usersByName = MutableStateFlow<List<User>>(emptyList())
+    val usersByName: StateFlow<List<User>> = _usersByName.asStateFlow()
 
     private val _currentChatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val currentChatMessages: StateFlow<List<ChatMessage>> = _currentChatMessages.asStateFlow()
@@ -91,6 +117,18 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
+        viewModelScope.launch {
+            repository.getAllColleges().collect { list ->
+                _allColleges.value = list
+            }
+        }
+
+        viewModelScope.launch {
+            repository.getAllMajors().collect { list ->
+                _allMajors.value = list
+            }
+        }
+
         // Check and seed DB if empty
         viewModelScope.launch {
             seedDatabaseIfEmpty()
@@ -98,19 +136,33 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private suspend fun seedDatabaseIfEmpty() {
+        val mockUsers = listOf(
+            User("prince@kletech.ac.in", "Prince", "KLE Tech University Hubli", "S20201", "Computer Science", 150),
+            User("trigun@kletech.ac.in", "Trigun", "KLE Tech University Hubli", "S20202", "Electronics & Communication", 140),
+            User("shubh@sdm.edu", "Shubh", "SDM College", "S30201", "Information Technology", 130),
+            User("krupa@sdm.edu", "Krupa", "SDM College", "S30202", "Data Science", 160),
+            User("riya@kletech.ac.in", "Riya", "KLE Tech University Hubli", "S20203", "Computer Science", 125),
+            User("rithika@sdm.edu", "Rithika", "SDM College", "S30203", "Business Administration", 135),
+            User("aliya@kletech.ac.in", "Aliya", "KLE Tech University Hubli", "S20204", "Artificial Intelligence", 145),
+            User("navneet@sdm.edu", "Navneet", "SDM College", "S30204", "Mechanical Engineering", 115),
+            User("alice.adams@stateu.edu", "Alice Adams", "State University", "S10405", "Computer Science", 150),
+            User("bob.baker@stateu.edu", "Bob Baker", "State University", "S10982", "Bioengineering", 120),
+            User("charlie.chen@stateu.edu", "Charlie Chen", "State University", "S11342", "Mechanical Engineering", 80),
+            User("rahul.patil@kletech.ac.in", "Rahul Patil", "KLE Tech University Hubli", "S20101", "Computer Science", 110),
+            User("pria.kulkarni@kletech.ac.in", "Pria Kulkarni", "KLE Tech University Hubli", "S20102", "Electronics & Communication", 140),
+            User("vijay.hegde@sdm.edu", "Vijay Hegde", "SDM College", "S30101", "Computer Science", 95),
+            User("ananya.rao@sdm.edu", "Ananya Rao", "SDM College", "S30102", "Business Administration", 130),
+            User("dean.office@stateu.edu", "Dean's Office", "State University", "FAC001", "Administration", 9999)
+        )
+
+        for (u in mockUsers) {
+            if (repository.getUserByEmailSync(u.email) == null) {
+                repository.insertUser(u)
+            }
+        }
+
         val existingResources = repository.getAllResources().first()
         if (existingResources.isEmpty()) {
-            // Pre-register some helpful mock accounts
-            val alice = User("alice.adams@stateu.edu", "Alice Adams", "State University", "S10405", "Computer Science", 150)
-            val bob = User("bob.baker@stateu.edu", "Bob Baker", "State University", "S10982", "Bioengineering", 120)
-            val charlie = User("charlie.chen@stateu.edu", "Charlie Chen", "State University", "S11342", "Mechanical Engineering", 80)
-            val admin = User("dean.office@stateu.edu", "Dean's Office", "State University", "FAC001", "Administration", 9999)
-
-            repository.insertUser(alice)
-            repository.insertUser(bob)
-            repository.insertUser(charlie)
-            repository.insertUser(admin)
-
             // Seed resource materials
             repository.insertResource(
                 ResourceMaterial(
@@ -343,14 +395,31 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.getDirectMessagesForUser(user.email).collect { list ->
                 _directMessages.value = list
+                val listWithUsers = list.map { dm ->
+                    val otherEmail = if (dm.participant1Email == user.email) dm.participant2Email else dm.participant1Email
+                    val otherUser = repository.getUserByEmailSync(otherEmail)
+                    DirectMessageWithUser(dm, otherUser)
+                }
+                _directMessagesWithUsers.value = listWithUsers
             }
         }
     }
 
     fun loadChatMessages(chatId: Int) {
+        val currentUserVal = _currentUser.value
         viewModelScope.launch {
             repository.getChatMessages(chatId).collect { list ->
                 _currentChatMessages.value = list
+            }
+        }
+        viewModelScope.launch {
+            val dm = repository.getDirectMessageById(chatId)
+            if (dm != null && currentUserVal != null) {
+                val otherEmail = if (dm.participant1Email == currentUserVal.email) dm.participant2Email else dm.participant1Email
+                val otherUser = repository.getUserByEmailSync(otherEmail)
+                _currentChatOtherUser.value = otherUser
+            } else {
+                _currentChatOtherUser.value = null
             }
         }
     }
@@ -362,11 +431,60 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun startNewChat(theirEmail: String, onResult: (Int) -> Unit) {
+    fun startNewChat(theirEmail: String, onResult: (Boolean, String, Int?) -> Unit) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
+            val existingChatId = repository.getDirectMessageId(user.email, theirEmail)
+            if (existingChatId != null) {
+                // Already have a chat, just open it, no charge
+                onResult(true, "", existingChatId)
+                return@launch
+            }
+
+            // New chat - charge 10 CC
+            val cost = 10
+            if (user.points < cost) {
+                onResult(false, "Insufficient balance! You need $cost CC (Campus Credits) to start a new chat connection.", null)
+                return@launch
+            }
+
+            val updatedUser = user.copy(points = user.points - cost)
+            repository.insertUser(updatedUser)
+            _currentUser.value = updatedUser
+
             val chatId = repository.createOrGetDirectMessage(user.email, theirEmail)
-            onResult(chatId)
+            onResult(true, "Chat connection started! -$cost CC", chatId)
+        }
+    }
+
+    fun selectCollegeForChat(collegeName: String) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            repository.getUsersInCollege(collegeName, user.email).collect {
+                _usersInSelectedCollege.value = it
+            }
+        }
+    }
+
+    fun selectMajorForChat(major: String) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            repository.getUsersInMajor(major, user.email).collect {
+                _usersInSelectedMajor.value = it
+            }
+        }
+    }
+
+    fun searchUsersByName(name: String) {
+        val user = _currentUser.value ?: return
+        if (name.isBlank()) {
+            _usersByName.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            repository.searchUsersByName(name, user.email).collect {
+                _usersByName.value = it
+            }
         }
     }
 
@@ -568,13 +686,7 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     // Utilities
     private fun isValidCollegeEmail(email: String): Boolean {
         val cleanEmail = email.trim().lowercase()
-        return cleanEmail.contains("@") && (
-            cleanEmail.endsWith(".edu") ||
-            cleanEmail.endsWith(".ac.uk") ||
-            cleanEmail.endsWith(".college.org") ||
-            cleanEmail.endsWith(".edu.in") ||
-            cleanEmail.contains(".edu.")
-        )
+        return cleanEmail.contains("@") && cleanEmail.isNotEmpty()
     }
 
     private fun guessCollegeName(email: String): String {

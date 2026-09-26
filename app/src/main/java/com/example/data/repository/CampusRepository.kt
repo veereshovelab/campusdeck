@@ -24,9 +24,16 @@ class CampusRepository(
     fun getDirectMessagesForUser(email: String) = messageDao.getDirectMessagesForUser(email)
 
     suspend fun createOrGetDirectMessage(myEmail: String, theirEmail: String): Int {
-        // Simple mock: in a real app, check if exists first
         val newDm = DirectMessage(participant1Email = myEmail, participant2Email = theirEmail)
         return messageDao.insertDirectMessage(newDm).toInt()
+    }
+
+    suspend fun getDirectMessageId(email1: String, email2: String): Int? {
+        return messageDao.getDirectMessageId(email1, email2)
+    }
+
+    suspend fun getDirectMessageById(chatId: Int): DirectMessage? {
+        return messageDao.getDirectMessageById(chatId)
     }
 
     fun getChatMessages(chatId: Int) = messageDao.getChatMessages(chatId)
@@ -40,6 +47,16 @@ class CampusRepository(
     fun getUserByEmail(email: String): Flow<User?> = userDao.getUserByEmail(email)
 
     suspend fun getUserByEmailSync(email: String): User? = userDao.getUserByEmailSync(email)
+
+    fun getAllColleges(): Flow<List<String>> = userDao.getAllColleges()
+
+    fun getAllMajors(): Flow<List<String>> = userDao.getAllMajors()
+
+    fun getUsersInCollege(collegeName: String, myEmail: String): Flow<List<User>> = userDao.getUsersInCollege(collegeName, myEmail)
+
+    fun getUsersInMajor(major: String, myEmail: String): Flow<List<User>> = userDao.getUsersInMajor(major, myEmail)
+
+    fun searchUsersByName(nameQuery: String, myEmail: String): Flow<List<User>> = userDao.searchUsersByName("%$nameQuery%", myEmail)
 
     suspend fun insertUser(user: User) = userDao.insertUser(user)
 

@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.CampusViewModel
+import com.example.ui.components.CampusLogo
 import com.example.ui.components.ResourceCardItem
 import com.example.ui.components.UploadResourceDialog
 import com.example.ui.theme.*
@@ -89,11 +90,8 @@ fun AssignmentScreen(
                                     .background(Color(0xFF020617), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.campusdeck_logo),
-                                    contentDescription = "Logo",
-                                    tint = Color.Unspecified,
-                                    modifier = Modifier.size(24.dp)
+                                CampusLogo(
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))

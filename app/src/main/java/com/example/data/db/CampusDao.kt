@@ -29,6 +29,12 @@ interface MessageDao {
 
     @Query("UPDATE direct_messages SET lastMessage = :lastMessage, lastMessageTimestamp = :timestamp WHERE id = :chatId")
     suspend fun updateLastMessage(chatId: Int, lastMessage: String, timestamp: Long)
+
+    @Query("SELECT id FROM direct_messages WHERE (participant1Email = :email1 AND participant2Email = :email2) OR (participant1Email = :email2 AND participant2Email = :email1) LIMIT 1")
+    suspend fun getDirectMessageId(email1: String, email2: String): Int?
+
+    @Query("SELECT * FROM direct_messages WHERE id = :chatId LIMIT 1")
+    suspend fun getDirectMessageById(chatId: Int): DirectMessage?
 }
 
 @Dao
@@ -47,6 +53,21 @@ interface UserDao {
 
     @Query("UPDATE users SET points = :points WHERE email = :email")
     suspend fun updateUserPoints(email: String, points: Int)
+
+    @Query("SELECT DISTINCT collegeName FROM users WHERE collegeName != '' ORDER BY collegeName ASC")
+    fun getAllColleges(): Flow<List<String>>
+
+    @Query("SELECT DISTINCT major FROM users WHERE major != '' ORDER BY major ASC")
+    fun getAllMajors(): Flow<List<String>>
+
+    @Query("SELECT * FROM users WHERE collegeName = :collegeName AND email != :myEmail ORDER BY name ASC")
+    fun getUsersInCollege(collegeName: String, myEmail: String): Flow<List<User>>
+
+    @Query("SELECT * FROM users WHERE major = :major AND email != :myEmail ORDER BY name ASC")
+    fun getUsersInMajor(major: String, myEmail: String): Flow<List<User>>
+
+    @Query("SELECT * FROM users WHERE name LIKE :nameQuery AND email != :myEmail ORDER BY name ASC")
+    fun searchUsersByName(nameQuery: String, myEmail: String): Flow<List<User>>
 }
 
 @Dao
