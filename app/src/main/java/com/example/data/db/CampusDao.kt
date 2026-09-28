@@ -11,6 +11,8 @@ import com.example.data.model.Gig
 import com.example.data.model.FeedPost
 import com.example.data.model.DirectMessage
 import com.example.data.model.ChatMessage
+import com.example.data.model.CommunityPost
+import com.example.data.model.CommunityComment
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -116,4 +118,25 @@ interface PostDao {
 
     @Query("UPDATE feed_posts SET likesCount = :likesCount, likedByEmails = :likedByEmails WHERE id = :id")
     suspend fun updatePostLikes(id: Int, likesCount: Int, likedByEmails: String)
+}
+
+@Dao
+interface CommunityDao {
+    @Query("SELECT * FROM community_posts ORDER BY timestamp DESC")
+    fun getAllCommunityPosts(): Flow<List<CommunityPost>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCommunityPost(post: CommunityPost): Long
+
+    @Query("UPDATE community_posts SET upvotesCount = :upvotesCount, upvotedByEmails = :upvotedByEmails, downvotesCount = :downvotesCount, downvotedByEmails = :downvotedByEmails WHERE id = :id")
+    suspend fun updatePostVotes(id: Int, upvotesCount: Int, upvotedByEmails: String, downvotesCount: Int, downvotedByEmails: String)
+
+    @Query("UPDATE community_posts SET commentsCount = :commentsCount WHERE id = :id")
+    suspend fun updateCommentsCount(id: Int, commentsCount: Int)
+
+    @Query("SELECT * FROM community_comments WHERE postId = :postId ORDER BY timestamp ASC")
+    fun getCommentsForPost(postId: Int): Flow<List<CommunityComment>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCommunityComment(comment: CommunityComment): Long
 }

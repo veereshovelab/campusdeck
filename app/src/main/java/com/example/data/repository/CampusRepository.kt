@@ -5,12 +5,15 @@ import com.example.data.db.ResourceDao
 import com.example.data.db.GigDao
 import com.example.data.db.PostDao
 import com.example.data.db.MessageDao
+import com.example.data.db.CommunityDao
 import com.example.data.model.User
 import com.example.data.model.ResourceMaterial
 import com.example.data.model.Gig
 import com.example.data.model.FeedPost
 import com.example.data.model.DirectMessage
 import com.example.data.model.ChatMessage
+import com.example.data.model.CommunityPost
+import com.example.data.model.CommunityComment
 import kotlinx.coroutines.flow.Flow
 
 class CampusRepository(
@@ -18,8 +21,17 @@ class CampusRepository(
     private val resourceDao: ResourceDao,
     private val gigDao: GigDao,
     private val postDao: PostDao,
-    private val messageDao: MessageDao
+    private val messageDao: MessageDao,
+    private val communityDao: CommunityDao
 ) {
+    // Community
+    fun getAllCommunityPosts() = communityDao.getAllCommunityPosts()
+    suspend fun insertCommunityPost(post: CommunityPost) = communityDao.insertCommunityPost(post)
+    suspend fun updatePostVotes(id: Int, upvotesCount: Int, upvotedByEmails: String, downvotesCount: Int, downvotedByEmails: String) =
+        communityDao.updatePostVotes(id, upvotesCount, upvotedByEmails, downvotesCount, downvotedByEmails)
+    suspend fun updateCommentsCount(id: Int, count: Int) = communityDao.updateCommentsCount(id, count)
+    fun getCommentsForPost(postId: Int) = communityDao.getCommentsForPost(postId)
+    suspend fun insertCommunityComment(comment: CommunityComment) = communityDao.insertCommunityComment(comment)
     // Messaging
     fun getDirectMessagesForUser(email: String) = messageDao.getDirectMessagesForUser(email)
 

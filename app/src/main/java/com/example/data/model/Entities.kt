@@ -93,3 +93,32 @@ sealed class HomeFeedItem {
     data class Post(val post: FeedPost) : HomeFeedItem()
     data class Suggestions(val suggestions: List<FriendSuggestion>) : HomeFeedItem()
 }
+
+@Entity(tableName = "community_posts")
+data class CommunityPost(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val collegeName: String,
+    val authorName: String,
+    val authorEmail: String,
+    val isAnonymous: Boolean = true,
+    val title: String,
+    val content: String,
+    val categoryTag: String = "Campus Discussion",
+    val upvotesCount: Int = 1,
+    val upvotedByEmails: String = "",
+    val downvotesCount: Int = 0,
+    val downvotedByEmails: String = "",
+    val commentsCount: Int = 0,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "community_comments")
+data class CommunityComment(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val postId: Int,
+    val authorName: String,
+    val authorEmail: String,
+    val isAnonymous: Boolean = true,
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis()
+)

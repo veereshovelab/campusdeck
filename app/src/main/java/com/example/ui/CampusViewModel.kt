@@ -10,6 +10,8 @@ import com.example.data.model.Gig
 import com.example.data.model.FeedPost
 import com.example.data.model.DirectMessage
 import com.example.data.model.ChatMessage
+import com.example.data.model.CommunityPost
+import com.example.data.model.CommunityComment
 import com.example.data.repository.CampusRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,12 +31,19 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         db.resourceDao(),
         db.gigDao(),
         db.postDao(),
-        db.messageDao()
+        db.messageDao(),
+        db.communityDao()
     )
 
     // States
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
+
+    private val _communityPosts = MutableStateFlow<List<CommunityPost>>(emptyList())
+    val communityPosts: StateFlow<List<CommunityPost>> = _communityPosts.asStateFlow()
+
+    private val _activeComments = MutableStateFlow<List<CommunityComment>>(emptyList())
+    val activeComments: StateFlow<List<CommunityComment>> = _activeComments.asStateFlow()
 
     private val _directMessages = MutableStateFlow<List<DirectMessage>>(emptyList())
     val directMessages: StateFlow<List<DirectMessage>> = _directMessages.asStateFlow()
@@ -118,6 +127,12 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         viewModelScope.launch {
+            repository.getAllCommunityPosts().collect { list ->
+                _communityPosts.value = list
+            }
+        }
+
+        viewModelScope.launch {
             repository.getAllColleges().collect { list ->
                 _allColleges.value = list
             }
@@ -159,6 +174,51 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
             if (repository.getUserByEmailSync(u.email) == null) {
                 repository.insertUser(u)
             }
+        }
+
+        val existingCommunityPosts = repository.getAllCommunityPosts().first()
+        if (existingCommunityPosts.isEmpty()) {
+            repository.insertCommunityPost(
+                CommunityPost(
+                    collegeName = "KLE Technological University, Hubballi",
+                    authorName = "Anonymous Student 🥷",
+                    authorEmail = "anon1@kletech.ac.in",
+                    isAnonymous = true,
+                    title = "Is the Wi-Fi in the Library Basement completely down for everyone?",
+                    content = "Trying to submit my CS201 lab before midnight but Eduroam keeps dropping connection near the study pods. Anyone else facing this issue?",
+                    categoryTag = "Campus Issue",
+                    upvotesCount = 18,
+                    commentsCount = 4
+                )
+            )
+
+            repository.insertCommunityPost(
+                CommunityPost(
+                    collegeName = "SDM College of Engineering & Tech",
+                    authorName = "Anonymous Student 🥷",
+                    authorEmail = "anon2@sdm.edu",
+                    isAnonymous = true,
+                    title = "Advice for surviving Dr. Kowalski's Linear Algebra Midterm?",
+                    content = "Heard rumors that 40% of the midterm is conceptual proof derivations from Chapter 3. Are previous year question banks enough?",
+                    categoryTag = "Advice",
+                    upvotesCount = 32,
+                    commentsCount = 7
+                )
+            )
+
+            repository.insertCommunityPost(
+                CommunityPost(
+                    collegeName = "KLE Technological University, Hubballi",
+                    authorName = "Prince",
+                    authorEmail = "prince@kletech.ac.in",
+                    isAnonymous = false,
+                    title = "Who wants to team up for ACM CodeStorm '26 Hackathon?",
+                    content = "Need 1 backend developer proficient in Kotlin/Python and Room/PostgreSQL. We have 1 frontend dev and 1 designer. DM or reply here!",
+                    categoryTag = "Discussion",
+                    upvotesCount = 25,
+                    commentsCount = 5
+                )
+            )
         }
 
         val existingResources = repository.getAllResources().first()
@@ -485,6 +545,96 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
             repository.searchUsersByName(name, user.email).collect {
                 _usersByName.value = it
             }
+        }
+    }
+
+    // Community Methods
+    fun createCommunityPost(title: String, content: String, categoryTag: String, isAnonymous: Boolean) {
+        val user = _currentUser.value ?: return
+        if (title.isBlank() || content.isBlank()) return
+        viewModelScope.launch {
+            val author = if (isAnonymous) "Anonymous Student 🥷" else user.name
+            val post = CommunityPost(
+                collegeName = user.collegeName,
+                authorName = author,
+                authorEmail = user.email,
+                isAnonymous = isAnonymous,
+                title = title,
+                content = content,
+                categoryTag = categoryTag
+            )
+            repository.insertCommunityPost(post)
+        }
+    }
+
+    fun loadCommentsForPost(postId: Int) {
+        viewModelScope.launch {
+            repository.getCommentsForPost(postId).collect { list ->
+                _activeComments.value = list
+            }
+        }
+    }
+
+    fun addCommunityComment(postId: Int, content: String, isAnonymous: Boolean) {
+        val user = _currentUser.value ?: return
+        if (content.isBlank()) return
+        viewModelScope.launch {
+            val author = if (isAnonymous) "Anonymous Student 🥷" else user.name
+            val comment = CommunityComment(
+                postId = postId,
+                authorName = author,
+                authorEmail = user.email,
+                isAnonymous = isAnonymous,
+                content = content
+            )
+            repository.insertCommunityComment(comment)
+            val currentComments = _activeComments.value.size + 1
+            repository.updateCommentsCount(postId, currentComments)
+        }
+    }
+
+    fun voteCommunityPost(post: CommunityPost, isUpvote: Boolean) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            val upvotedList = post.upvotedByEmails.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+            val downvotedList = post.downvotedByEmails.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+
+            var newUpvotes = post.upvotesCount
+            var newDownvotes = post.downvotesCount
+
+            if (isUpvote) {
+                if (upvotedList.contains(user.email)) {
+                    upvotedList.remove(user.email)
+                    newUpvotes = (newUpvotes - 1).coerceAtLeast(0)
+                } else {
+                    upvotedList.add(user.email)
+                    newUpvotes += 1
+                    if (downvotedList.contains(user.email)) {
+                        downvotedList.remove(user.email)
+                        newDownvotes = (newDownvotes - 1).coerceAtLeast(0)
+                    }
+                }
+            } else {
+                if (downvotedList.contains(user.email)) {
+                    downvotedList.remove(user.email)
+                    newDownvotes = (newDownvotes - 1).coerceAtLeast(0)
+                } else {
+                    downvotedList.add(user.email)
+                    newDownvotes += 1
+                    if (upvotedList.contains(user.email)) {
+                        upvotedList.remove(user.email)
+                        newUpvotes = (newUpvotes - 1).coerceAtLeast(0)
+                    }
+                }
+            }
+
+            repository.updatePostVotes(
+                id = post.id,
+                upvotesCount = newUpvotes,
+                upvotedByEmails = upvotedList.joinToString(","),
+                downvotesCount = newDownvotes,
+                downvotedByEmails = downvotedList.joinToString(",")
+            )
         }
     }
 

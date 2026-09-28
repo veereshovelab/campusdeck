@@ -10,10 +10,12 @@ import com.example.data.model.Gig
 import com.example.data.model.FeedPost
 import com.example.data.model.DirectMessage
 import com.example.data.model.ChatMessage
+import com.example.data.model.CommunityPost
+import com.example.data.model.CommunityComment
 
 @Database(
-    entities = [User::class, ResourceMaterial::class, Gig::class, FeedPost::class, DirectMessage::class, ChatMessage::class],
-    version = 2,
+    entities = [User::class, ResourceMaterial::class, Gig::class, FeedPost::class, DirectMessage::class, ChatMessage::class, CommunityPost::class, CommunityComment::class],
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +24,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun gigDao(): GigDao
     abstract fun postDao(): PostDao
     abstract fun messageDao(): MessageDao
+    abstract fun communityDao(): CommunityDao
 
     companion object {
         @Volatile

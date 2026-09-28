@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Handshake
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
 
 enum class CampusTab(val route: String) {
   FEED("feed"),
+  COMMUNITY("community"),
   ASSIGNMENTS("assignments"),
   MARKETPLACE("marketplace"),
   GIGS("gigs"),
@@ -76,7 +78,7 @@ fun MainAppContent(viewModel: CampusViewModel) {
       modifier = Modifier.fillMaxSize(),
       containerColor = BentoBackground,
       bottomBar = {
-        val mainTabs = listOf(CampusTab.FEED, CampusTab.ASSIGNMENTS, CampusTab.MESSAGES, CampusTab.MARKETPLACE, CampusTab.GIGS, CampusTab.PROFILE)
+        val mainTabs = listOf(CampusTab.FEED, CampusTab.COMMUNITY, CampusTab.ASSIGNMENTS, CampusTab.MESSAGES, CampusTab.MARKETPLACE, CampusTab.GIGS, CampusTab.PROFILE)
         val showBottomBar = currentRoute in mainTabs.map { it.route }
         
         if (showBottomBar) {
@@ -107,11 +109,12 @@ fun MainAppContent(viewModel: CampusViewModel) {
                 icon = {
                   val icon = when (tab) {
                     CampusTab.FEED -> Icons.Default.Campaign
+                    CampusTab.COMMUNITY -> Icons.Default.Forum
                     CampusTab.ASSIGNMENTS -> Icons.AutoMirrored.Filled.Assignment
                     CampusTab.MARKETPLACE -> Icons.Default.MenuBook
                     CampusTab.GIGS -> Icons.Default.Handshake
                     CampusTab.PROFILE -> Icons.Default.Person
-                    CampusTab.MESSAGES -> Icons.Default.Email // Placeholder icon
+                    CampusTab.MESSAGES -> Icons.Default.Email
                     else -> Icons.Default.Campaign
                   }
                   Icon(icon, contentDescription = tab.name)
@@ -151,6 +154,9 @@ fun MainAppContent(viewModel: CampusViewModel) {
               }
             }
           )
+        }
+        composable(CampusTab.COMMUNITY.route) {
+          CommunityScreen(viewModel = viewModel)
         }
         composable(CampusTab.ASSIGNMENTS.route) {
           AssignmentScreen(viewModel = viewModel)
