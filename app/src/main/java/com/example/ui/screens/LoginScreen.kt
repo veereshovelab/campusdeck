@@ -75,6 +75,8 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.CampusViewModel
 import com.example.ui.components.CampusLogo
 import com.example.ui.theme.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 
 @Composable
 fun LoginScreen(
@@ -83,8 +85,10 @@ fun LoginScreen(
 ) {
     val isRegistering by viewModel.isRegistering.collectAsState()
     val errorMsg by viewModel.loginError.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var collegeName by remember { mutableStateOf("") }
     var studentId by remember { mutableStateOf("") }
@@ -240,7 +244,7 @@ fun LoginScreen(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Email,
-                                imeAction = if (isRegistering) ImeAction.Next else ImeAction.Done
+                                imeAction = ImeAction.Next
                             ),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = BentoTextMain,
@@ -254,6 +258,33 @@ fun LoginScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("email_input")
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Password") },
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Password", tint = BentoLavenderContent) },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = if (isRegistering) ImeAction.Next else ImeAction.Done
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = BentoTextMain,
+                                unfocusedTextColor = BentoTextMain,
+                                focusedBorderColor = BentoLavenderContent,
+                                unfocusedBorderColor = BentoBorder,
+                                focusedLabelColor = BentoLavenderContent,
+                                unfocusedLabelColor = BentoTextSecondary
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("password_input")
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -362,11 +393,12 @@ fun LoginScreen(
                         Button(
                             onClick = {
                                 if (isRegistering) {
-                                    viewModel.register(email, name, collegeName, studentId, major)
+                                    viewModel.register(email, password, name, collegeName, studentId, major)
                                 } else {
-                                    viewModel.login(email)
+                                    viewModel.login(email, password)
                                 }
                             },
+                            enabled = !isLoading,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp)
@@ -377,10 +409,18 @@ fun LoginScreen(
                                 contentColor = Color.White
                             )
                         ) {
-                            Text(
-                                text = if (isRegistering) "Sign Up & Claim Welcome Bonus" else "Log In",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                            )
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.5.dp
+                                )
+                            } else {
+                                Text(
+                                    text = if (isRegistering) "Sign Up & Claim Welcome Bonus" else "Log In",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))

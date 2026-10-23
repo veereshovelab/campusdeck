@@ -18,6 +18,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 
 data class DirectMessageWithUser(
     val dm: DirectMessage,
@@ -25,6 +30,13 @@ data class DirectMessageWithUser(
 )
 
 class CampusViewModel(application: Application) : AndroidViewModel(application) {
+    private val auth = FirebaseAuth.getInstance()
+    private var authStateListener: FirebaseAuth.AuthStateListener? = null
+    
+    // Auth Loading State
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     private val db = AppDatabase.getDatabase(application)
     private val repository = CampusRepository(
         db.userDao(),
@@ -103,6 +115,31 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     val isRegistering: StateFlow<Boolean> = _isRegistering.asStateFlow()
 
     init {
+        // Auth State Listener for persistence
+        authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            val firebaseUser = firebaseAuth.currentUser
+            if (firebaseUser != null) {
+                // Fetch the existing Room DB user profile
+                viewModelScope.launch {
+                    val email = firebaseUser.email ?: return@launch
+                    val user = repository.getUserByEmailSync(email)
+                    if (user != null) {
+                        _currentUser.value = user
+                        observePostsForCollege(user.collegeName)
+                    } else {
+                        // User logged into Firebase, but no local Room user exists.
+                        // For mock persistence/safety, we log them out or keep them pending.
+                        // Here we just sign out because they need a profile.
+                        FirebaseAuth.getInstance().signOut()
+                        _currentUser.value = null
+                    }
+                }
+            } else {
+                _currentUser.value = null
+            }
+        }
+        auth.addAuthStateListener(authStateListener!!)
+
         // Observe search query and update resources dynamically
         viewModelScope.launch {
             _searchQuery.collect { query ->
@@ -371,71 +408,110 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // Auth actions
-    fun login(email: String) {
+    fun login(email: String, password: String) {
         viewModelScope.launch {
+            if (email.isBlank() || password.isBlank()) {
+                _loginError.value = "Email and password cannot be empty"
+                return@launch
+            }
             if (!isValidCollegeEmail(email)) {
                 _loginError.value = "Email must end with a college-issued domain (e.g., .edu, .ac.uk, or .college.org)"
                 return@launch
             }
 
-            val user = repository.getUserByEmailSync(email)
-            if (user != null) {
-                _currentUser.value = user
-                _loginError.value = null
-                observePostsForCollege(user.collegeName)
-            } else {
-                // If user doesn't exist but has valid email, let's auto-create a friendly default profile for easy prototyping!
-                val defaultName = email.substringBefore("@").replace(".", " ").capitalizeWords()
-                val guessedCollege = guessCollegeName(email)
-                val newUser = User(
-                    email = email,
-                    name = defaultName,
-                    collegeName = guessedCollege,
-                    studentId = "S${(10000..99999).random()}",
-                    major = "General Studies",
-                    points = 100
-                )
-                repository.insertUser(newUser)
-                _currentUser.value = newUser
-                _loginError.value = null
-                observePostsForCollege(guessedCollege)
-            }
+            _isLoading.value = true
+            _loginError.value = null
+
+            auth.signInWithEmailAndPassword(email, password)
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val firebaseUser = task.result?.user
+                        if (firebaseUser != null && firebaseUser.email != null) {
+                            viewModelScope.launch {
+                                val user = repository.getUserByEmailSync(firebaseUser.email!!)
+                                if (user != null) {
+                                    _currentUser.value = user
+                                    observePostsForCollege(user.collegeName)
+                                } else {
+                                    // Edge case: Firebase authenticated but Room missing
+                                    _loginError.value = "Local profile not found. Please register."
+                                    auth.signOut()
+                                }
+                                _isLoading.value = false
+                            }
+                        } else {
+                            _isLoading.value = false
+                        }
+                    } else {
+                        _isLoading.value = false
+                        _loginError.value = when (task.exception) {
+                            is FirebaseAuthInvalidUserException -> "No account found with this email"
+                            is FirebaseAuthInvalidCredentialsException -> "Incorrect email or password"
+                            else -> task.exception?.localizedMessage ?: "Login failed. Please try again."
+                        }
+                    }
+                }
         }
     }
 
-    fun register(email: String, name: String, collegeName: String, studentId: String, major: String) {
+    fun register(email: String, password: String, name: String, collegeName: String, studentId: String, major: String) {
         viewModelScope.launch {
+            if (email.isBlank() || password.isBlank() || name.isBlank() || collegeName.isBlank() || studentId.isBlank() || major.isBlank()) {
+                _loginError.value = "All fields are required"
+                return@launch
+            }
             if (!isValidCollegeEmail(email)) {
                 _loginError.value = "Email must end with a college-issued domain (e.g., .edu, .ac.uk, or .college.org)"
                 return@launch
             }
-            if (name.isBlank() || collegeName.isBlank() || studentId.isBlank() || major.isBlank()) {
-                _loginError.value = "All fields are required"
-                return@launch
-            }
 
+            // Check if Room already has it first before hitting Firebase
             val existing = repository.getUserByEmailSync(email)
             if (existing != null) {
-                _loginError.value = "An account with this email already exists"
+                _loginError.value = "An account with this email already exists locally"
                 return@launch
             }
 
-            val newUser = User(
-                email = email,
-                name = name,
-                collegeName = collegeName,
-                studentId = studentId,
-                major = major,
-                points = 100 // Welcome points!
-            )
-            repository.insertUser(newUser)
-            _currentUser.value = newUser
+            _isLoading.value = true
             _loginError.value = null
-            observePostsForCollege(collegeName)
+
+            auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val firebaseUser = task.result?.user
+                        if (firebaseUser != null) {
+                            viewModelScope.launch {
+                                val newUser = User(
+                                    email = email,
+                                    name = name,
+                                    collegeName = collegeName,
+                                    studentId = studentId,
+                                    major = major,
+                                    points = 100 // Welcome points!
+                                    // Room PK is still email in Phase 2
+                                )
+                                repository.insertUser(newUser)
+                                _currentUser.value = newUser
+                                _isLoading.value = false
+                                observePostsForCollege(collegeName)
+                            }
+                        } else {
+                            _isLoading.value = false
+                        }
+                    } else {
+                        _isLoading.value = false
+                        _loginError.value = when (task.exception) {
+                            is FirebaseAuthUserCollisionException -> "An account with this email already exists"
+                            is FirebaseAuthWeakPasswordException -> "Password is too weak"
+                            else -> task.exception?.localizedMessage ?: "Registration failed"
+                        }
+                    }
+                }
         }
     }
 
     fun logout() {
+        auth.signOut()
         _currentUser.value = null
         _feedPosts.value = emptyList()
         _unlockedResourceIds.value = emptySet()
@@ -837,6 +913,11 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
     private fun isValidCollegeEmail(email: String): Boolean {
         val cleanEmail = email.trim().lowercase()
         return cleanEmail.contains("@") && cleanEmail.isNotEmpty()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        authStateListener?.let { auth.removeAuthStateListener(it) }
     }
 
     private fun guessCollegeName(email: String): String {

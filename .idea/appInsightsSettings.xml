@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.aistudio.campusdeck.xyrvwn" />
+                  <option name="mobileSdkAppId" value="1:596992103546:android:e8dc893c946d0e4b6697c3" />
+                  <option name="projectId" value="campusdesk-7f14c" />
+                  <option name="projectNumber" value="596992103546" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
