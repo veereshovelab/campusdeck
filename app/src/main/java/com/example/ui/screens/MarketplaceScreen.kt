@@ -300,8 +300,8 @@ fun MarketplaceScreen(
         if (showUploadDialog) {
             UploadResourceDialog(
                 onDismiss = { showUploadDialog = false },
-                onUpload = { title, course, prof, sem, desc, type, price ->
-                    viewModel.addResource(title, course, prof, sem, desc, type, price)
+                onUpload = { title, course, prof, sem, desc, type, price, fileUri ->
+                    viewModel.addResource(title, course, prof, sem, desc, type, price, fileUri)
                     Toast.makeText(context, "Successfully listed study notes on the marketplace!", Toast.LENGTH_SHORT).show()
                     showUploadDialog = false
                 }

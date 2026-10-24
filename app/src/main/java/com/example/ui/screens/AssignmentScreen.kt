@@ -227,8 +227,8 @@ fun AssignmentScreen(
         if (showUploadDialog) {
             UploadResourceDialog(
                 onDismiss = { showUploadDialog = false },
-                onUpload = { title, course, prof, sem, desc, _, price ->
-                    viewModel.addResource(title, course, prof, sem, desc, "Assignment", price)
+                onUpload = { title, course, prof, sem, desc, _, price, fileUri ->
+                    viewModel.addResource(title, course, prof, sem, desc, "Assignment", price, fileUri)
                     Toast.makeText(context, "Assignment uploaded to the vault!", Toast.LENGTH_SHORT).show()
                     showUploadDialog = false
                 },

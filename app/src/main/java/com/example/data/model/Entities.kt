@@ -51,6 +51,7 @@ data class ResourceMaterial(
     val uploaderName: String,
     val collegeName: String,
     val priceInPoints: Int,
+    val fileUrl: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 

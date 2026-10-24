@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.AppDatabase
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -745,30 +747,100 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun getFileSize(uri: Uri): Long {
+        val context = getApplication<Application>().applicationContext
+        var size = 0L
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (sizeIndex != -1) {
+                    size = cursor.getLong(sizeIndex)
+                }
+            }
+        }
+        return size
+    }
+
     fun updateUserProfile(user: User) {
         viewModelScope.launch {
+            _isLoading.value = true
+            var finalUser = user
             val firebaseUser = auth.currentUser
+            
             if (firebaseUser != null) {
-                val success = repository.updateFirestoreUserProfile(firebaseUser.uid, user)
+                // Check if profilePictureUri is a local content URI
+                if (user.profilePictureUri != null && user.profilePictureUri.startsWith("content://")) {
+                    val uri = Uri.parse(user.profilePictureUri)
+                    
+                    if (getFileSize(uri) > 5 * 1024 * 1024) {
+                        _isLoading.value = false
+                        return@launch
+                    }
+
+                    val downloadUrl = repository.uploadProfileImage(firebaseUser.uid, uri)
+                    if (downloadUrl != null) {
+                        finalUser = finalUser.copy(profilePictureUri = downloadUrl)
+                    } else {
+                        // Upload failed, perhaps due to offline. Just keep existing remote url if possible or null.
+                        // We will keep the previous URL from the current state if possible.
+                        val prevUrl = _currentUser.value?.profilePictureUri
+                        finalUser = finalUser.copy(profilePictureUri = prevUrl)
+                    }
+                }
+                
+                val success = repository.updateFirestoreUserProfile(firebaseUser.uid, finalUser)
                 if (success) {
-                    repository.updateUser(user)
-                    _currentUser.value = user
+                    repository.updateUser(finalUser)
+                    _currentUser.value = finalUser
                 } else {
-                    // If unsuccessful: preserve the local state and expose an error/retry state.
-                    // Fallback to Room for offline functionality.
-                    repository.updateUser(user)
-                    _currentUser.value = user
+                    repository.updateUser(finalUser)
+                    _currentUser.value = finalUser
                 }
             } else {
-                repository.updateUser(user)
-                _currentUser.value = user
+                repository.updateUser(finalUser)
+                _currentUser.value = finalUser
             }
+            _isLoading.value = false
         }
     }
 
-    fun addResource(title: String, courseCode: String, professor: String, semester: String, description: String, fileType: String, priceInPoints: Int) {
+    private val _uploadError = MutableStateFlow<String?>(null)
+    val uploadError: StateFlow<String?> = _uploadError.asStateFlow()
+
+    fun addResource(title: String, courseCode: String, professor: String, semester: String, description: String, fileType: String, priceInPoints: Int, fileUri: Uri?) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
+            _isLoading.value = true
+            _uploadError.value = null
+            
+            val firebaseUser = auth.currentUser
+            if (firebaseUser == null) {
+                _isLoading.value = false
+                _uploadError.value = "You must be signed in to upload a resource."
+                return@launch
+            }
+            
+            var downloadUrl: String? = null
+            if (fileUri != null) {
+                // Validate file size (e.g. max 15 MB for PDFs)
+                if (getFileSize(fileUri) > 15 * 1024 * 1024) {
+                    _isLoading.value = false
+                    _uploadError.value = "File is too large (Max 15MB)."
+                    return@launch
+                }
+                
+                downloadUrl = repository.uploadResourceFile(firebaseUser.uid, fileUri)
+                if (downloadUrl == null) {
+                    _isLoading.value = false
+                    _uploadError.value = "Failed to upload file. Please check your connection."
+                    return@launch
+                }
+            } else {
+                _isLoading.value = false
+                _uploadError.value = "Please select a valid PDF file."
+                return@launch
+            }
+
             val material = ResourceMaterial(
                 title = title,
                 courseCode = courseCode.uppercase(),
@@ -779,9 +851,11 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                 uploaderEmail = user.email,
                 uploaderName = user.name,
                 collegeName = user.collegeName,
-                priceInPoints = priceInPoints
+                priceInPoints = priceInPoints,
+                fileUrl = downloadUrl
             )
             repository.insertResource(material)
+            _isLoading.value = false
         }
     }
 

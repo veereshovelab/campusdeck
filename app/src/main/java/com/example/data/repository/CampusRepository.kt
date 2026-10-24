@@ -19,6 +19,9 @@ import kotlinx.coroutines.tasks.await
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.storage.FirebaseStorage
+import android.net.Uri
+import java.util.UUID
 
 class CampusRepository(
     private val userDao: UserDao,
@@ -29,6 +32,32 @@ class CampusRepository(
     private val communityDao: CommunityDao
 ) {
     private val firestore = FirebaseFirestore.getInstance()
+    private val storage = FirebaseStorage.getInstance()
+
+    // Firebase Storage
+    suspend fun uploadProfileImage(uid: String, uri: Uri): String? {
+        return try {
+            val ref = storage.reference.child("profile_images/$uid.jpg")
+            ref.putFile(uri).await()
+            ref.downloadUrl.await().toString()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun uploadResourceFile(uid: String, uri: Uri): String? {
+        return try {
+            val resourceId = UUID.randomUUID().toString()
+            val filename = uri.lastPathSegment ?: "document.pdf"
+            val ref = storage.reference.child("resource_files/$resourceId/$filename")
+            ref.putFile(uri).await()
+            ref.downloadUrl.await().toString()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     // Firestore User Profile
     suspend fun createFirestoreUserProfile(uid: String, user: User): Boolean {

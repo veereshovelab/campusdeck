@@ -1,6 +1,9 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.border
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -162,7 +165,7 @@ fun ResourceCardItem(
 @Composable
 fun UploadResourceDialog(
     onDismiss: () -> Unit,
-    onUpload: (String, String, String, String, String, String, Int) -> Unit,
+    onUpload: (String, String, String, String, String, String, Int, Uri?) -> Unit,
     initialFileType: String = "Notes"
 ) {
     var title by remember { mutableStateOf("") }
@@ -172,6 +175,18 @@ fun UploadResourceDialog(
     var description by remember { mutableStateOf("") }
     var fileType by remember { mutableStateOf(initialFileType) }
     var priceInPoints by remember { mutableStateOf("15") }
+    var fileUri by remember { mutableStateOf<Uri?>(null) }
+    var fileName by remember { mutableStateOf<String?>(null) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            if (uri != null) {
+                fileUri = uri
+                fileName = uri.lastPathSegment ?: "document.pdf"
+            }
+        }
+    )
 
     val fileTypes = listOf("Assignment", "Notes", "Study Guide", "Cheat Sheet", "Exam Prep")
 
@@ -335,6 +350,16 @@ fun UploadResourceDialog(
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
+                
+                Button(
+                    onClick = { filePickerLauncher.launch(arrayOf("application/pdf")) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = BentoLilacContainer, contentColor = BentoLilacContent)
+                ) {
+                    Text(if (fileName != null) "Selected: $fileName" else "Attach PDF File")
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = description,
@@ -367,8 +392,8 @@ fun UploadResourceDialog(
                     Button(
                         onClick = {
                             val priceInt = priceInPoints.toIntOrNull() ?: 15
-                            if (title.isNotBlank() && courseCode.isNotBlank()) {
-                                onUpload(title, courseCode, professor, semester, description, fileType, priceInt)
+                            if (title.isNotBlank() && courseCode.isNotBlank() && fileUri != null) {
+                                onUpload(title, courseCode, professor, semester, description, fileType, priceInt, fileUri)
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BentoLavenderContent, contentColor = Color.White),
