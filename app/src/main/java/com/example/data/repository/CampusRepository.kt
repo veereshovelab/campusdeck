@@ -15,6 +15,10 @@ import com.example.data.model.ChatMessage
 import com.example.data.model.CommunityPost
 import com.example.data.model.CommunityComment
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.tasks.await
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.FieldValue
 
 class CampusRepository(
     private val userDao: UserDao,
@@ -24,6 +28,88 @@ class CampusRepository(
     private val messageDao: MessageDao,
     private val communityDao: CommunityDao
 ) {
+    private val firestore = FirebaseFirestore.getInstance()
+
+    // Firestore User Profile
+    suspend fun createFirestoreUserProfile(uid: String, user: User): Boolean {
+        return try {
+            val userMap = hashMapOf(
+                "uid" to uid,
+                "email" to user.email,
+                "name" to user.name,
+                "collegeName" to user.collegeName,
+                "studentId" to user.studentId,
+                "major" to user.major,
+                "points" to user.points,
+                "bio" to user.bio,
+                "profilePictureUri" to user.profilePictureUri,
+                "appearance" to user.appearance,
+                "collegeCourse" to user.collegeCourse,
+                "phoneNumber" to user.phoneNumber,
+                "socialLink" to user.socialLink,
+                "role" to user.role,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            firestore.collection("users").document(uid).set(userMap).await()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun getFirestoreUserProfile(uid: String): User? {
+        return try {
+            val document = firestore.collection("users").document(uid).get().await()
+            if (document.exists()) {
+                User(
+                    email = document.getString("email") ?: "",
+                    name = document.getString("name") ?: "",
+                    collegeName = document.getString("collegeName") ?: "",
+                    studentId = document.getString("studentId") ?: "",
+                    major = document.getString("major") ?: "",
+                    points = document.getLong("points")?.toInt() ?: 100,
+                    bio = document.getString("bio") ?: "",
+                    profilePictureUri = document.getString("profilePictureUri"),
+                    appearance = document.getString("appearance") ?: "System",
+                    collegeCourse = document.getString("collegeCourse") ?: "",
+                    phoneNumber = document.getString("phoneNumber") ?: "",
+                    socialLink = document.getString("socialLink") ?: "",
+                    role = document.getString("role") ?: "Student"
+                )
+            } else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun updateFirestoreUserProfile(uid: String, user: User): Boolean {
+        return try {
+            val userMap = hashMapOf<String, Any?>(
+                "name" to user.name,
+                "collegeName" to user.collegeName,
+                "studentId" to user.studentId,
+                "major" to user.major,
+                "points" to user.points,
+                "bio" to user.bio,
+                "profilePictureUri" to user.profilePictureUri,
+                "appearance" to user.appearance,
+                "collegeCourse" to user.collegeCourse,
+                "phoneNumber" to user.phoneNumber,
+                "socialLink" to user.socialLink,
+                "role" to user.role,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            firestore.collection("users").document(uid).set(userMap, SetOptions.merge()).await()
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     // Community
     fun getAllCommunityPosts() = communityDao.getAllCommunityPosts()
     suspend fun insertCommunityPost(post: CommunityPost) = communityDao.insertCommunityPost(post)

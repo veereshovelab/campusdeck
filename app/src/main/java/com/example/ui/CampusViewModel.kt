@@ -119,19 +119,25 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
             val firebaseUser = firebaseAuth.currentUser
             if (firebaseUser != null) {
-                // Fetch the existing Room DB user profile
                 viewModelScope.launch {
+                    val uid = firebaseUser.uid
                     val email = firebaseUser.email ?: return@launch
-                    val user = repository.getUserByEmailSync(email)
-                    if (user != null) {
-                        _currentUser.value = user
-                        observePostsForCollege(user.collegeName)
+                    
+                    val firestoreUser = repository.getFirestoreUserProfile(uid)
+                    if (firestoreUser != null) {
+                        repository.insertUser(firestoreUser)
+                        _currentUser.value = firestoreUser
+                        observePostsForCollege(firestoreUser.collegeName)
                     } else {
-                        // User logged into Firebase, but no local Room user exists.
-                        // For mock persistence/safety, we log them out or keep them pending.
-                        // Here we just sign out because they need a profile.
-                        FirebaseAuth.getInstance().signOut()
-                        _currentUser.value = null
+                        // Offline fallback or missing profile
+                        val localUser = repository.getUserByEmailSync(email)
+                        if (localUser != null) {
+                            _currentUser.value = localUser
+                            observePostsForCollege(localUser.collegeName)
+                        } else {
+                            FirebaseAuth.getInstance().signOut()
+                            _currentUser.value = null
+                        }
                     }
                 }
             } else {
@@ -428,14 +434,21 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                         val firebaseUser = task.result?.user
                         if (firebaseUser != null && firebaseUser.email != null) {
                             viewModelScope.launch {
-                                val user = repository.getUserByEmailSync(firebaseUser.email!!)
-                                if (user != null) {
-                                    _currentUser.value = user
-                                    observePostsForCollege(user.collegeName)
+                                val firestoreUser = repository.getFirestoreUserProfile(firebaseUser.uid)
+                                if (firestoreUser != null) {
+                                    repository.insertUser(firestoreUser)
+                                    _currentUser.value = firestoreUser
+                                    observePostsForCollege(firestoreUser.collegeName)
                                 } else {
-                                    // Edge case: Firebase authenticated but Room missing
-                                    _loginError.value = "Local profile not found. Please register."
-                                    auth.signOut()
+                                    val localUser = repository.getUserByEmailSync(firebaseUser.email!!)
+                                    if (localUser != null) {
+                                        repository.createFirestoreUserProfile(firebaseUser.uid, localUser)
+                                        _currentUser.value = localUser
+                                        observePostsForCollege(localUser.collegeName)
+                                    } else {
+                                        _loginError.value = "Local profile not found. Please register."
+                                        auth.signOut()
+                                    }
                                 }
                                 _isLoading.value = false
                             }
@@ -490,6 +503,7 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                                     points = 100 // Welcome points!
                                     // Room PK is still email in Phase 2
                                 )
+                                repository.createFirestoreUserProfile(firebaseUser.uid, newUser)
                                 repository.insertUser(newUser)
                                 _currentUser.value = newUser
                                 _isLoading.value = false
@@ -733,8 +747,22 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateUserProfile(user: User) {
         viewModelScope.launch {
-            repository.updateUser(user)
-            _currentUser.value = user
+            val firebaseUser = auth.currentUser
+            if (firebaseUser != null) {
+                val success = repository.updateFirestoreUserProfile(firebaseUser.uid, user)
+                if (success) {
+                    repository.updateUser(user)
+                    _currentUser.value = user
+                } else {
+                    // If unsuccessful: preserve the local state and expose an error/retry state.
+                    // Fallback to Room for offline functionality.
+                    repository.updateUser(user)
+                    _currentUser.value = user
+                }
+            } else {
+                repository.updateUser(user)
+                _currentUser.value = user
+            }
         }
     }
 
