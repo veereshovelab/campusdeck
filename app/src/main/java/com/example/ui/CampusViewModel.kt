@@ -777,22 +777,31 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                         return@launch
                     }
 
-                    val downloadUrl = repository.uploadProfileImage(firebaseUser.uid, uri)
-                    if (downloadUrl != null) {
-                        finalUser = finalUser.copy(profilePictureUri = downloadUrl)
+                    val uploadPath = repository.uploadProfileImage(getApplication<Application>().applicationContext, uri)
+                    if (uploadPath != null) {
+                        val success = repository.updateFirestoreUserProfile(firebaseUser.uid, finalUser, true, uploadPath)
+                        if (success) {
+                            val signedUrl = repository.getSignedUrl(uploadPath)
+                            finalUser = finalUser.copy(profilePictureUri = signedUrl ?: uploadPath)
+                            repository.updateUser(finalUser)
+                            _currentUser.value = finalUser
+                        } else {
+                            // Fallback
+                            val prevUrl = _currentUser.value?.profilePictureUri
+                            finalUser = finalUser.copy(profilePictureUri = prevUrl)
+                            repository.updateUser(finalUser)
+                            _currentUser.value = finalUser
+                        }
                     } else {
-                        // Upload failed, perhaps due to offline. Just keep existing remote url if possible or null.
-                        // We will keep the previous URL from the current state if possible.
+                        // Failed to upload
                         val prevUrl = _currentUser.value?.profilePictureUri
                         finalUser = finalUser.copy(profilePictureUri = prevUrl)
+                        repository.updateUser(finalUser)
+                        _currentUser.value = finalUser
                     }
-                }
-                
-                val success = repository.updateFirestoreUserProfile(firebaseUser.uid, finalUser)
-                if (success) {
-                    repository.updateUser(finalUser)
-                    _currentUser.value = finalUser
                 } else {
+                    // No image change
+                    repository.updateFirestoreUserProfile(firebaseUser.uid, finalUser, false, null)
                     repository.updateUser(finalUser)
                     _currentUser.value = finalUser
                 }
@@ -829,7 +838,7 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
                 
-                downloadUrl = repository.uploadResourceFile(firebaseUser.uid, fileUri)
+                downloadUrl = repository.uploadResourceFile(getApplication<Application>().applicationContext, fileUri)
                 if (downloadUrl == null) {
                     _isLoading.value = false
                     _uploadError.value = "Failed to upload file. Please check your connection."

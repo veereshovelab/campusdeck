@@ -19,9 +19,19 @@ import kotlinx.coroutines.tasks.await
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.FieldValue
-import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.auth.FirebaseAuth
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
+import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import android.net.Uri
-import java.util.UUID
 
 class CampusRepository(
     private val userDao: UserDao,
@@ -32,30 +42,110 @@ class CampusRepository(
     private val communityDao: CommunityDao
 ) {
     private val firestore = FirebaseFirestore.getInstance()
-    private val storage = FirebaseStorage.getInstance()
+    private val httpClient = OkHttpClient()
+    private val BACKEND_URL = "http://10.0.2.2:3000"
 
-    // Firebase Storage
-    suspend fun uploadProfileImage(uid: String, uri: Uri): String? {
+    private suspend fun getFirebaseIdToken(): String? {
+        val user = FirebaseAuth.getInstance().currentUser ?: return null
         return try {
-            val ref = storage.reference.child("profile_images/$uid.jpg")
-            ref.putFile(uri).await()
-            ref.downloadUrl.await().toString()
+            val result = user.getIdToken(false).await()
+            result.token
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
 
-    suspend fun uploadResourceFile(uid: String, uri: Uri): String? {
-        return try {
-            val resourceId = UUID.randomUUID().toString()
-            val filename = uri.lastPathSegment ?: "document.pdf"
-            val ref = storage.reference.child("resource_files/$resourceId/$filename")
-            ref.putFile(uri).await()
-            ref.downloadUrl.await().toString()
+    private suspend fun uriToFile(context: Context, uri: Uri): File? = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext null
+            val tempFile = File.createTempFile("upload", ".tmp", context.cacheDir)
+            val outputStream = FileOutputStream(tempFile)
+            inputStream.copyTo(outputStream)
+            inputStream.close()
+            outputStream.close()
+            tempFile
         } catch (e: Exception) {
             e.printStackTrace()
             null
+        }
+    }
+
+    // Storage via Trusted Backend Bridge
+    suspend fun uploadProfileImage(context: Context, uri: Uri): String? {
+        val token = getFirebaseIdToken() ?: return null
+        val file = uriToFile(context, uri) ?: return null
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val requestBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("file", "profile.jpg", file.asRequestBody("image/jpeg".toMediaTypeOrNull()))
+                    .build()
+
+                val request = Request.Builder()
+                    .url("$BACKEND_URL/storage/profile-image")
+                    .addHeader("Authorization", "Bearer $token")
+                    .post(requestBody)
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val responseString = response.body?.string()
+                
+                if (response.isSuccessful && responseString != null) {
+                    val json = JSONObject(responseString)
+                    if (json.has("path")) {
+                        return@withContext json.getString("path")
+                    }
+                }
+                println("Upload failed: $responseString")
+                null
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            } finally {
+                file.delete()
+            }
+        }
+    }
+
+    suspend fun uploadResourceFile(context: Context, uri: Uri): String? {
+        val token = getFirebaseIdToken() ?: return null
+        val file = uriToFile(context, uri) ?: return null
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val filename = uri.lastPathSegment ?: "document.pdf"
+                
+                val requestBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("filename", filename)
+                    .addFormDataPart("file", filename, file.asRequestBody("application/pdf".toMediaTypeOrNull()))
+                    .build()
+
+                val request = Request.Builder()
+                    .url("$BACKEND_URL/storage/resource-pdf")
+                    .addHeader("Authorization", "Bearer $token")
+                    .post(requestBody)
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val responseString = response.body?.string()
+                
+                if (response.isSuccessful && responseString != null) {
+                    val json = JSONObject(responseString)
+                    if (json.has("path")) {
+                        return@withContext json.getString("path")
+                    }
+                }
+                println("Upload failed: $responseString")
+                null
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            } finally {
+                file.delete()
+            }
         }
     }
 
@@ -92,6 +182,11 @@ class CampusRepository(
         return try {
             val document = firestore.collection("users").document(uid).get().await()
             if (document.exists()) {
+                var imagePath = document.getString("profilePictureUri")
+                var imageUrl = imagePath
+                if (imagePath != null && !imagePath.startsWith("http")) {
+                    imageUrl = getSignedUrl(imagePath) ?: imagePath
+                }
                 User(
                     email = document.getString("email") ?: "",
                     name = document.getString("name") ?: "",
@@ -100,7 +195,7 @@ class CampusRepository(
                     major = document.getString("major") ?: "",
                     points = document.getLong("points")?.toInt() ?: 100,
                     bio = document.getString("bio") ?: "",
-                    profilePictureUri = document.getString("profilePictureUri"),
+                    profilePictureUri = imageUrl,
                     appearance = document.getString("appearance") ?: "System",
                     collegeCourse = document.getString("collegeCourse") ?: "",
                     phoneNumber = document.getString("phoneNumber") ?: "",
@@ -114,7 +209,7 @@ class CampusRepository(
         }
     }
 
-    suspend fun updateFirestoreUserProfile(uid: String, user: User): Boolean {
+    suspend fun updateFirestoreUserProfile(uid: String, user: User, updateImage: Boolean = false, imagePath: String? = null): Boolean {
         return try {
             val userMap = hashMapOf<String, Any?>(
                 "name" to user.name,
@@ -123,7 +218,6 @@ class CampusRepository(
                 "major" to user.major,
                 "points" to user.points,
                 "bio" to user.bio,
-                "profilePictureUri" to user.profilePictureUri,
                 "appearance" to user.appearance,
                 "collegeCourse" to user.collegeCourse,
                 "phoneNumber" to user.phoneNumber,
@@ -131,11 +225,46 @@ class CampusRepository(
                 "role" to user.role,
                 "updatedAt" to FieldValue.serverTimestamp()
             )
+            if (updateImage) {
+                userMap["profilePictureUri"] = imagePath
+            }
             firestore.collection("users").document(uid).set(userMap, SetOptions.merge()).await()
             true
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    suspend fun getSignedUrl(path: String): String? {
+        val token = getFirebaseIdToken() ?: return null
+        return withContext(Dispatchers.IO) {
+            try {
+                val jsonBody = JSONObject().apply {
+                    put("path", path)
+                }
+                val requestBody = okhttp3.RequestBody.create("application/json".toMediaTypeOrNull(), jsonBody.toString())
+                
+                val request = Request.Builder()
+                    .url("$BACKEND_URL/storage/signed-url")
+                    .addHeader("Authorization", "Bearer $token")
+                    .post(requestBody)
+                    .build()
+                    
+                val response = httpClient.newCall(request).execute()
+                val responseString = response.body?.string()
+                
+                if (response.isSuccessful && responseString != null) {
+                    val json = JSONObject(responseString)
+                    if (json.has("path")) {
+                        return@withContext json.getString("path")
+                    }
+                }
+                null
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
         }
     }
 
