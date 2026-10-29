@@ -15,7 +15,7 @@ import com.example.data.model.CommunityComment
 
 @Database(
     entities = [User::class, ResourceMaterial::class, Gig::class, FeedPost::class, DirectMessage::class, ChatMessage::class, CommunityPost::class, CommunityComment::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
