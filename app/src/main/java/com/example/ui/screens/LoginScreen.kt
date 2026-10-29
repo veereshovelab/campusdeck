@@ -63,6 +63,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
@@ -421,6 +427,51 @@ fun LoginScreen(
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                 )
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = BentoBorder)
+                            Text(
+                                text = "  OR  ",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = BentoTextSecondary
+                            )
+                            HorizontalDivider(modifier = Modifier.weight(1f), color = BentoBorder)
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        val context = LocalContext.current
+                        OutlinedButton(
+                            onClick = { viewModel.signInWithGoogle(context) },
+                            enabled = !isLoading,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .testTag("google_sign_in_button"),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, BentoBorder),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = BentoTextMain
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = "Google Sign In",
+                                tint = BentoLavenderContent,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Continue with Google",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))

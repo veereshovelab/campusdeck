@@ -20,6 +20,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import android.net.Uri
+import android.content.Context
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.CustomCredential
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.GoogleAuthProvider
+import com.example.R
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -523,6 +533,96 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                 }
+        }
+    }
+
+    fun signInWithGoogle(context: Context) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _loginError.value = null
+            try {
+                val credentialManager = CredentialManager.create(context)
+                val webClientId = context.getString(R.string.default_web_client_id)
+
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(webClientId)
+                    .setAutoSelectEnabled(false)
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val result = credentialManager.getCredential(
+                    request = request,
+                    context = context
+                )
+
+                val credential = result.credential
+                if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val idToken = googleIdTokenCredential.idToken
+
+                    val authCredential = GoogleAuthProvider.getCredential(idToken, null)
+                    auth.signInWithCredential(authCredential)
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                val firebaseUser = task.result?.user
+                                if (firebaseUser != null && firebaseUser.email != null) {
+                                    viewModelScope.launch {
+                                        val firestoreUser = repository.getFirestoreUserProfile(firebaseUser.uid)
+                                        if (firestoreUser != null) {
+                                            repository.insertUser(firestoreUser)
+                                            _currentUser.value = firestoreUser
+                                            observePostsForCollege(firestoreUser.collegeName)
+                                        } else {
+                                            val localUser = repository.getUserByEmailSync(firebaseUser.email!!)
+                                            val name = firebaseUser.displayName ?: firebaseUser.email!!.substringBefore("@").replace(".", " ")
+                                            val photoUrl = firebaseUser.photoUrl?.toString()
+
+                                            val userToSave = localUser ?: User(
+                                                email = firebaseUser.email!!,
+                                                name = name,
+                                                collegeName = "State University",
+                                                studentId = "S${(10000..99999).random()}",
+                                                major = "General Studies",
+                                                points = 100,
+                                                profilePictureUri = photoUrl
+                                            )
+
+                                            repository.createFirestoreUserProfile(firebaseUser.uid, userToSave)
+                                            repository.insertUser(userToSave)
+                                            _currentUser.value = userToSave
+                                            observePostsForCollege(userToSave.collegeName)
+                                        }
+                                        _isLoading.value = false
+                                    }
+                                } else {
+                                    _isLoading.value = false
+                                }
+                            } else {
+                                _isLoading.value = false
+                                _loginError.value = when (task.exception) {
+                                    is FirebaseAuthUserCollisionException -> "An account with this email already exists with another provider."
+                                    else -> task.exception?.localizedMessage ?: "Google Sign-In failed."
+                                }
+                            }
+                        }
+                } else {
+                    _isLoading.value = false
+                    _loginError.value = "Unrecognized credential type."
+                }
+            } catch (e: GetCredentialCancellationException) {
+                _isLoading.value = false
+                _loginError.value = "Google Sign-In was cancelled."
+            } catch (e: GetCredentialException) {
+                _isLoading.value = false
+                _loginError.value = e.localizedMessage ?: "Google Sign-In failed."
+            } catch (e: Exception) {
+                _isLoading.value = false
+                _loginError.value = e.localizedMessage ?: "An error occurred during Google Sign-In."
+            }
         }
     }
 
