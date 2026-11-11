@@ -21,12 +21,15 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import android.net.Uri
 import android.content.Context
+import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.CustomCredential
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import androidx.credentials.exceptions.NoCredentialException
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.GoogleAuthProvider
 import com.example.R
@@ -540,18 +543,27 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _isLoading.value = true
             _loginError.value = null
+            Log.d("CampusDeskAuth", "Starting Google Sign-In flow")
+
             try {
                 val credentialManager = CredentialManager.create(context)
                 val webClientId = context.getString(R.string.default_web_client_id)
 
-                val googleIdOption = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(webClientId)
-                    .setAutoSelectEnabled(false)
+                if (webClientId.isBlank()) {
+                    Log.e("CampusDeskAuth", "Web Client ID is empty or not configured in google-services.json")
+                    _isLoading.value = false
+                    _loginError.value = "Google Sign-In configuration error: Web Client ID missing."
+                    return@launch
+                }
+
+                Log.d("CampusDeskAuth", "Using GetSignInWithGoogleOption with Web Client ID ending in ...${webClientId.takeLast(12)}")
+
+                // Use GetSignInWithGoogleOption for explicit button clicks ("Continue with Google")
+                val googleSignInOption = GetSignInWithGoogleOption.Builder(serverClientId = webClientId)
                     .build()
 
                 val request = GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
+                    .addCredentialOption(googleSignInOption)
                     .build()
 
                 val result = credentialManager.getCredential(
@@ -564,12 +576,15 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                     val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                     val idToken = googleIdTokenCredential.idToken
 
+                    Log.d("CampusDeskAuth", "Obtained Google ID Token successfully. Authenticating with Firebase...")
+
                     val authCredential = GoogleAuthProvider.getCredential(idToken, null)
                     auth.signInWithCredential(authCredential)
                         .addOnCompleteListener { task ->
                             if (task.isSuccessful) {
                                 val firebaseUser = task.result?.user
                                 if (firebaseUser != null && firebaseUser.email != null) {
+                                    Log.d("CampusDeskAuth", "Firebase authentication succeeded for UID: ${firebaseUser.uid}")
                                     viewModelScope.launch {
                                         val firestoreUser = repository.getFirestoreUserProfile(firebaseUser.uid)
                                         if (firestoreUser != null) {
@@ -599,29 +614,48 @@ class CampusViewModel(application: Application) : AndroidViewModel(application) 
                                         _isLoading.value = false
                                     }
                                 } else {
+                                    Log.e("CampusDeskAuth", "Firebase user or email is null after sign-in")
                                     _isLoading.value = false
+                                    _loginError.value = "Failed to retrieve user information from Google."
                                 }
                             } else {
+                                Log.e("CampusDeskAuth", "Firebase signInWithCredential failed", task.exception)
                                 _isLoading.value = false
                                 _loginError.value = when (task.exception) {
                                     is FirebaseAuthUserCollisionException -> "An account with this email already exists with another provider."
-                                    else -> task.exception?.localizedMessage ?: "Google Sign-In failed."
+                                    else -> task.exception?.localizedMessage ?: "Google Sign-In authentication failed."
                                 }
                             }
                         }
                 } else {
+                    Log.e("CampusDeskAuth", "Unrecognized credential type received: ${credential.type}")
                     _isLoading.value = false
-                    _loginError.value = "Unrecognized credential type."
+                    _loginError.value = "Unrecognized credential response from Google."
                 }
             } catch (e: GetCredentialCancellationException) {
+                Log.d("CampusDeskAuth", "Google Sign-In cancelled by user")
                 _isLoading.value = false
                 _loginError.value = "Google Sign-In was cancelled."
+            } catch (e: NoCredentialException) {
+                Log.e("CampusDeskAuth", "NoCredentialException: No Google account found on device", e)
+                _isLoading.value = false
+                _loginError.value = "No Google account found on this device. Please add a Google account in device Settings and try again."
+            } catch (e: GetCredentialProviderConfigurationException) {
+                Log.e("CampusDeskAuth", "GetCredentialProviderConfigurationException: Provider configuration issue", e)
+                _isLoading.value = false
+                _loginError.value = "Google Sign-In configuration error. Please check Google Play Services."
             } catch (e: GetCredentialException) {
+                Log.e("CampusDeskAuth", "GetCredentialException occurred: ${e.type}", e)
                 _isLoading.value = false
-                _loginError.value = e.localizedMessage ?: "Google Sign-In failed."
+                _loginError.value = when {
+                    e.message?.contains("No credentials available", ignoreCase = true) == true ->
+                        "No Google account available on this device. Please sign in to Google in device Settings."
+                    else -> e.localizedMessage ?: "Google Sign-In failed."
+                }
             } catch (e: Exception) {
+                Log.e("CampusDeskAuth", "Unexpected error during Google Sign-In", e)
                 _isLoading.value = false
-                _loginError.value = e.localizedMessage ?: "An error occurred during Google Sign-In."
+                _loginError.value = e.localizedMessage ?: "An unexpected error occurred during Google Sign-In."
             }
         }
     }
